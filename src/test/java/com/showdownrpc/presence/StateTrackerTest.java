@@ -4,10 +4,10 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.Test;
 
+import com.jagrosh.discordipc.entities.RichPresence;
 import com.showdownrpc.protocol.ProtocolMessage;
 import com.showdownrpc.showdown.BattleRoom;
 
@@ -19,7 +19,9 @@ class StateTrackerTest {
     void idleWhenNothingIsHappening() {
         StateSnapshot s = tracker.compute(List.of(), List.of());
         assertEquals(AppState.IDLE, s.state());
-        assertNull(new PresenceMapper().map(s));   // null means "clear presence"
+        RichPresence presence = new PresenceMapper().map(s);
+        assertNotNull(presence);                                   // idle now shows a lobby state
+        assertTrue(presence.toJson().toString().contains("In the lobby"));
     }
 
     @Test

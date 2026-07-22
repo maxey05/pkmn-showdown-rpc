@@ -6,15 +6,45 @@ public class BattleRoom
 {
     private final String roomId;
     private volatile String tier, title;
-    private String p1, p2, myPlayerSlot;
+    // Written on the WebSocket thread, read on the presence-tick thread.
+    private volatile String p1, p2, myPlayerSlot;
     private volatile int turn;
     private volatile long startedAtEpochSeconds;
     private volatile boolean finished;
-    
-    private long lastActivityMillis = System.currentTimeMillis();
+
+    private volatile long lastActivityMillis = System.currentTimeMillis();
 
     public BattleRoom(String roomId) {
         this.roomId = roomId;
+    }
+
+    /**
+     * A battle we are watching but have NOT joined on this connection, built from a
+     * userdetails poll. We therefore never receive its protocol stream, so there is
+     * no turn counter and no start timestamp — the SPECTATING presence doesn't use
+     * either. myPlayerSlot stays null, so isPlaying() correctly reports false.
+     */
+    public static BattleRoom spectated(String roomId, String p1, String p2) {
+        BattleRoom room = new BattleRoom(roomId);
+        room.p1 = p1;
+        room.p2 = p2;
+        room.tier = formatFromRoomId(roomId);
+        room.title = (p1 != null && p2 != null) ? p1 + " vs. " + p2 : roomId;
+        return room;
+    }
+
+    /** Keeps a poll-derived room from looking stale next to a live one. */
+    public void touch() {
+        lastActivityMillis = System.currentTimeMillis();
+    }
+
+    /**
+     * "battle-gen9ou-2314" -> "gen9ou". Format ids never contain '-', so the second
+     * segment is always the whole format, even with a password suffix.
+     */
+    static String formatFromRoomId(String roomId) {
+        String[] parts = roomId.split("-");
+        return parts.length >= 2 ? parts[1] : null;
     }
 
     public void accept(ProtocolMessage msg, String myUserId) {

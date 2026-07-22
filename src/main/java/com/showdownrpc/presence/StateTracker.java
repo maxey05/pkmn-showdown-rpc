@@ -1,6 +1,7 @@
 package com.showdownrpc.presence;
 
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 
@@ -10,7 +11,12 @@ public class StateTracker
 {
     public StateSnapshot compute(List<String> searching, Collection<BattleRoom> battles)
     {
-        Optional<BattleRoom> active = battles.stream().filter(b -> !b.finished()).max((a, b) -> Long.compare(a.lastActivityMillis(), b.lastActivityMillis()));
+        // A battle you're playing always outranks one you're only watching; among
+        // equals, the most recently active wins.
+        Optional<BattleRoom> active = battles.stream()
+            .filter(b -> !b.finished())
+            .max(Comparator.comparing((BattleRoom b) -> b.isPlaying())
+                           .thenComparingLong(BattleRoom::lastActivityMillis));
 
         if(active.isPresent())
         {
