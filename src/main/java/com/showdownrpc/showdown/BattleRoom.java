@@ -9,6 +9,8 @@ public class BattleRoom
     private int turn;
     private long startedAtEpochSeconds;
     private boolean finished;
+    
+    private long lastActivityMillis = System.currentTimeMillis();
 
     BattleRoom(String roomId) {
         this.roomId = roomId;
@@ -39,5 +41,45 @@ public class BattleRoom
     /** Showdown's userid normalization: lowercase, alphanumerics only. */
     static String toId(String name) {
         return name.toLowerCase().replaceAll("[^a-z0-9]", "");
+    }
+
+    public String roomId()
+    {
+        return roomId;
+    }
+
+    public String tier()
+    {
+        return tier;
+    }
+
+    public String title()
+    {
+        return title;
+    }
+
+    public int turn()
+    {
+        return turn;
+    }
+
+    public long startedAtEpochSeconds()
+    {
+        return startedAtEpochSeconds;
+    }
+
+    public boolean finished()
+    {
+        return finished;
+    }
+
+    public boolean isPlaying()
+    {
+        return myPlayerSlot != null;
+    }
+
+    public long lastActivityMillis()
+    {
+        return lastActivityMillis();
     }
 }
