@@ -1,5 +1,6 @@
 package com.showdownrpc;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -14,6 +15,7 @@ import com.showdownrpc.presence.PresenceDispatcher;
 import com.showdownrpc.presence.PresenceMapper;
 import com.showdownrpc.presence.StateSnapshot;
 import com.showdownrpc.presence.StateTracker;
+import com.showdownrpc.platform.WindowWatcher;
 import com.showdownrpc.showdown.ShowdownClient;
 
 public class Main 
@@ -23,7 +25,7 @@ public class Main
     private static final long TICK_INTERVAL_SECONDS = 2;
 
     public static void main(String[] args) throws Exception {
-        Config config = Config.load(Path.of("config.properties"));
+        Config config = Config.load(resolveConfigPath());
 
         ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
 
@@ -32,6 +34,7 @@ public class Main
         StateTracker tracker = new StateTracker();
         PresenceMapper mapper = new PresenceMapper();
         PresenceDispatcher dispatcher = new PresenceDispatcher(discord);
+        WindowWatcher windowWatcher = new WindowWatcher();
 
         discord.start();
         showdown.connect();
@@ -39,7 +42,13 @@ public class Main
         scheduler.scheduleAtFixedRate(() -> {
             try {
                 StateSnapshot snapshot = tracker.compute(showdown.searching(), showdown.battles());
-                dispatcher.update(mapper.map(snapshot));
+                if (snapshot.state() == com.showdownrpc.presence.AppState.IDLE
+                        && windowWatcher.inTeambuilder()) {
+                    snapshot = new StateSnapshot(
+                        com.showdownrpc.presence.AppState.TEAMBUILDING,
+                        null, null, 0, 0, java.util.List.of());
+                }
+                dispatcher.update(snapshot.state(), mapper.map(snapshot));
             } catch (Exception e) {
                 log.warn("Presence tick failed", e);
             }
@@ -55,6 +64,9 @@ public class Main
                                   ShowdownClient showdown,
                                   DiscordConnection discord) {
         log.info("Shutting down...");
+        // Flag the client first so its onClose doesn't try to schedule a reconnect,
+        // then close connections, then stop the scheduler last.
+        showdown.shutdown();
         scheduler.shutdownNow();
         discord.shutdown();
         try {
@@ -63,5 +75,22 @@ public class Main
             Thread.currentThread().interrupt();
         }
         log.info("Shutdown complete");
+    }
+
+    private static Path resolveConfigPath()
+    {
+        try
+        {
+            Path jarDir = Path.of(Main.class.getProtectionDomain().getCodeSource().getLocation().toURI()).getParent();
+            Path beside = jarDir.resolve("config.properties");
+            if(Files.exists(beside))
+                return beside;
+        }
+        catch(Exception e)
+        {
+
+        }
+
+        return Path.of("config.properties");
     }
 }
