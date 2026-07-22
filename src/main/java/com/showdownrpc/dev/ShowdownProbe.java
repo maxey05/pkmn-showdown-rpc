@@ -21,9 +21,11 @@ public class ShowdownProbe
 
     public static void main(String[] args) throws Exception {
         Config config = Config.load(Path.of("config.properties"));
-        ShowdownClient client = new ShowdownClient(config);
         StateTracker tracker = new StateTracker();
         PresenceMapper mapper = new PresenceMapper();
+
+        ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
+        ShowdownClient client = new ShowdownClient(config, scheduler);
 
         client.connect();   // async — returns immediately
 
@@ -35,13 +37,11 @@ public class ShowdownProbe
                 log.info("state={} -> {}", snapshot.state(),
                     presence == null ? "null (would clear)" : presence.toJson());
             } catch (Exception e) {
-                // A bad snapshot should never kill the poller.
                 log.warn("Failed to compute/map presence", e);
             }
         }, 2, 2, TimeUnit.SECONDS);
 
         Runtime.getRuntime().addShutdownHook(new Thread(poller::shutdownNow));
-
-        Thread.currentThread().join();   // run until Ctrl+C
+        Thread.currentThread().join();
     }
 }

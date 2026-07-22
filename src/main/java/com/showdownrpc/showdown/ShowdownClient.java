@@ -13,6 +13,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.java_websocket.client.WebSocketClient;
 import org.java_websocket.handshake.ServerHandshake;
@@ -30,9 +33,13 @@ public class ShowdownClient extends WebSocketClient
     private static final Logger log = LoggerFactory.getLogger(ShowdownClient.class);
     private static final URI SERVER = URI.create("wss://sim3.psim.us/showdown/websocket");
     private static final String LOGIN_URL = "https://play.pokemonshowdown.com/api/login";
+    private static final long INITIAL_BACKOFF_MS = 2_000;
+    private static final long MAX_BACKOFF_MS = 60_000;
 
     private final Config config;
     private final HttpClient http = HttpClient.newHttpClient();
+    private final ScheduledExecutorService scheduler;
+    private final AtomicInteger attempt = new AtomicInteger(0);
 
     private final Map<String, BattleRoom> battleRooms = new ConcurrentHashMap<>();
     private final Set<String> knownBattles = ConcurrentHashMap.newKeySet();
@@ -45,16 +52,17 @@ public class ShowdownClient extends WebSocketClient
     private volatile boolean finished;
     private volatile long lastActivityMillis = System.currentTimeMillis();
 
-    public ShowdownClient(Config config) {
+    public ShowdownClient(Config config, ScheduledExecutorService scheduler) {
         super(SERVER);
         this.config = config;
-        // Java-WebSocket sends pings and drops the connection if unanswered.
+        this.scheduler = scheduler;
         setConnectionLostTimeout(60);
     }
 
     @Override
     public void onOpen(ServerHandshake handshake) {
         log.info("Connected to Showdown");
+        attempt.set(0);
     }
 
     @Override
@@ -163,11 +171,24 @@ public class ShowdownClient extends WebSocketClient
         return battleRooms.values();
     }
 
-    @Override public void onClose(int code, String reason, boolean remote) {
-        log.warn("Disconnected ({}): {}", code, reason);
+    @Override 
+    public void onClose(int code, String reason, boolean remote) {
+        log.warn("Disconnected ({}): {} - scheduling reconnect", code, reason);
+
+        battleRooms.clear();
+        knownBattles.clear();
+
+        long delay = Math.min(
+            INITIAL_BACKOFF_MS * (1L << Math.min(attempt.getAndIncrement(), 5)),
+            MAX_BACKOFF_MS);
+
+        log.info("Reconnecting to Showdown in {} ms", delay);
+
+        scheduler.schedule(this::reconnect, delay, TimeUnit.MILLISECONDS);
     }
 
-    @Override public void onError(Exception e) {
+    @Override 
+    public void onError(Exception e) {
         log.error("WebSocket error", e);
     }
 }

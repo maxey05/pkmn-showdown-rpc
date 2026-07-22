@@ -5,10 +5,11 @@ import com.showdownrpc.protocol.ProtocolMessage;
 public class BattleRoom
 {
     private final String roomId;
-    private String tier, title, p1, p2, myPlayerSlot;
-    private int turn;
-    private long startedAtEpochSeconds;
-    private boolean finished;
+    private volatile String tier, title;
+    private String p1, p2, myPlayerSlot;
+    private volatile int turn;
+    private volatile long startedAtEpochSeconds;
+    private volatile boolean finished;
     
     private long lastActivityMillis = System.currentTimeMillis();
 
