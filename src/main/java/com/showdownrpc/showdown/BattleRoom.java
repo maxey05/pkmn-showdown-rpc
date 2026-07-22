@@ -12,11 +12,12 @@ public class BattleRoom
     
     private long lastActivityMillis = System.currentTimeMillis();
 
-    BattleRoom(String roomId) {
+    public BattleRoom(String roomId) {
         this.roomId = roomId;
     }
 
-    void accept(ProtocolMessage msg, String myUserId) {
+    public void accept(ProtocolMessage msg, String myUserId) {
+        lastActivityMillis = System.currentTimeMillis();
         switch (msg.type()) {
             case "title" -> title = msg.arg(0);
             case "tier"  -> tier = msg.arg(0);
@@ -80,6 +81,6 @@ public class BattleRoom
 
     public long lastActivityMillis()
     {
-        return lastActivityMillis();
+        return lastActivityMillis;
     }
 }

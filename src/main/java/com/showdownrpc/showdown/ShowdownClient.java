@@ -7,9 +7,12 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 import org.java_websocket.client.WebSocketClient;
 import org.java_websocket.handshake.ServerHandshake;
@@ -30,7 +33,17 @@ public class ShowdownClient extends WebSocketClient
 
     private final Config config;
     private final HttpClient http = HttpClient.newHttpClient();
-    private final Set<String> knownBattles = new HashSet<>();
+
+    private final Map<String, BattleRoom> battleRooms = new ConcurrentHashMap<>();
+    private final Set<String> knownBattles = ConcurrentHashMap.newKeySet();
+    private volatile List<String> lastSearching = List.of();
+    private volatile String myUserId;
+
+    private volatile String tier, title, p1, p2, myPlayerSlot;
+    private volatile int turn;
+    private volatile long startedAtEpochSeconds;
+    private volatile boolean finished;
+    private volatile long lastActivityMillis = System.currentTimeMillis();
 
     public ShowdownClient(Config config) {
         super(SERVER);
@@ -115,6 +128,7 @@ public class ShowdownClient extends WebSocketClient
         if (json.has("searching") && json.get("searching").isJsonArray()) {
             json.getAsJsonArray("searching").forEach(e -> searching.add(e.getAsString()));
         }
+        this.lastSearching = List.copyOf(searching);
 
         // games: {roomid: title}, or null when you're in none.
         Set<String> battles = new HashSet<>();
@@ -138,6 +152,15 @@ public class ShowdownClient extends WebSocketClient
 
     private static String enc(String s) {
         return URLEncoder.encode(s, StandardCharsets.UTF_8);
+    }
+
+    public List<String> searching(){
+        return lastSearching;
+    }
+
+    public Collection<BattleRoom> battles()
+    {
+        return battleRooms.values();
     }
 
     @Override public void onClose(int code, String reason, boolean remote) {
